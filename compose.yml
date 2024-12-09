@@ -1,0 +1,66 @@
+services:
+    airflow:
+        image: breedfides-etl/airflow:latest
+        env_file: ./.env
+        container_name: airflow4${COMPOSE_PROJECT_NAME}
+        depends_on:
+            db:
+                condition: service_healthy
+        environment:
+            # AIRFLOW__WEBSERVER__BASE_URL: '${HOSTNAME}'
+            AIRFLOW__CORE__DAGS_FOLDER: '/usr/src/airflow/dags'
+            AIRFLOW__CORE__PLUGINS_FOLDER: '/usr/src/airflow/plugins'
+            AIRFLOW__LOGGING__BASE_LOG_FOLDER: '/usr/src/airflow/logs'
+            AIRFLOW__LOGGING__DAG_PROCESSOR_MANAGER_LOG_LOCATION: '/usr/src/airflow/logs/dag_processor_manager/dag_processor_manager.log'
+            AIRFLOW__WEBSERVER__CONFIG_FILE: '/usr/src/airflow/webserver_config.py'
+            AIRFLOW__SCHEDULER__CHILD_PROCESS_LOG_DIRECTORY: '/usr/src/airflow/logs/scheduler'
+        healthcheck:
+          test: "curl --fail --silent --write-out 'HTTP CODE : %{http_code}\n' --output /dev/null http://127.0.0.1:8080/"
+          start_period: 60s
+          interval: 60s
+          timeout: 10s
+          retries: 10
+        ports:
+            - "8080:8080"
+        restart: unless-stopped 
+        volumes:
+            - etl-data:/usr/src/airflow/output
+
+    db:
+        image: postgres:15.10
+        container_name: db4${COMPOSE_PROJECT_NAME}
+        ports:
+            - "5432:5432"
+        env_file: ./.env
+        volumes:
+            - ./docker/db/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d/
+            - dbdata:/var/lib/postgresql/data
+        healthcheck:
+            test: "pg_isready -d postgres -U postgres"
+            start_period: 10s
+            interval: 60s
+            timeout: 10s
+            retries: 10
+        restart: unless-stopped 
+
+    nginx:
+        image: breedfides-etl/nginx:latest
+        container_name: webserver4${COMPOSE_PROJECT_NAME}
+        build: docker/nginx/
+        env_file: ./.env
+        environment:
+            - RESOLVER=127.0.0.11
+        links:
+            - airflow:airflow
+        ports:
+            - "80:80"
+        restart: unless-stopped
+        depends_on:
+            airflow:
+                condition: service_healthy
+
+volumes:
+  dbdata:
+    name: ${COMPOSE_PROJECT_NAME}-dbdata
+  etl-data:
+    name: ${COMPOSE_PROJECT_NAME}-etl-data

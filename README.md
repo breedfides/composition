@@ -13,6 +13,12 @@ How to use:
 3. run composition
     - `docker compose up`
 
+# architecture overview
+
+![infrastructure schema](docu/infrastructure-schema.jpg)
+
+This composition will host the apache airflow component as shown above. 
+
 # containers
 ## postgres
 
